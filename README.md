@@ -6,9 +6,8 @@ This is a plugin for the [Serverless Framework](https://serverless.com/).  It us
 ## Requirements
 
 - The [serverless-offline](https://www.npmjs.com/package/serverless-offline) plugin
-- The [serverless-offline-lambda](https://www.npmjs.com/package/serverless-offline-lambda) plugin
 - The [serverless-step-functions](https://www.npmjs.com/package/serverless-step-functions) plugin
-- Java Runtime Engine (JRE) version 6.x or newer
+- (optional) Java Runtime Engine (JRE) version 6.x or newer if you don't run your own AWS Step Functions emulator
 
 ## Install
 
@@ -52,6 +51,8 @@ It also adds an environment variable for each created state machine that contain
 - `lambdaEndpoint` (defaults to `http://localhost:4000`) the endpoint for the lambda service
 - `path` (defaults to `./.step-functions-local`) the path to store the downloaded step function executables
 - `TaskResourceMapping` allows for Resource ARNs to be configured differently for local development
+- `startStepFunctionsLocalApp` (default: true) starts AWS step function emulator. Set to false if it's running already. It needs to run on port 8083.  
+
 
 ### Full Config Example
 
@@ -76,6 +77,7 @@ custom:
     TaskResourceMapping:
       FirstState: arn:aws:lambda:us-east-1:101010101010:function:hello
       FinalState: arn:aws:lambda:us-east-1:101010101010:function:hello
+    startStepFunctionsLocalApp: true
 
 functions:
   hello:
@@ -100,4 +102,14 @@ stepFunctions:
             Type: Task
             Resource: Fn::GetAtt: [hello, Arn]
             End: true
+```
+
+### Running AWS Step functions emulator in Docker
+```bash
+$ docker run \
+    -p 8083:8083 \
+    -e "AWS_ACCOUNT_ID=101010101010" \
+    -e "AWS_DEFAULT_REGION=us-east-1" \
+    -e "LAMBDA_ENDPOINT=http://localhost:3002" \
+    amazon/aws-stepfunctions-local
 ```

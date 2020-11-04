@@ -30,19 +30,28 @@ class ServerlessStepFunctionsLocal {
       this.config.path = './.step-functions-local';
     }
 
+    if (this.config.startStepFunctionsLocalApp === undefined) {
+      this.config.startStepFunctionsLocalApp = true
+    }
+
     this.stepfunctionsServer = new StepFunctionsLocal(this.config);
 
     this.stepfunctionsAPI = new AWS.StepFunctions({endpoint: 'http://localhost:8083', region: this.config.region});
 
     this.hooks = {
       'offline:start:init': async () => {
-        await this.installStepFunctions();
+        if (this.config.startStepFunctionsLocalApp) {
+          await this.installStepFunctions();
+        }
+
         await this.startStepFunctions();
         await this.getStepFunctionsFromConfig();
         await this.createEndpoints();
       },
       'before:offline:start:end': async () => {
-        await this.stopStepFunctions();
+        if (this.config.startStepFunctionsLocalApp) {
+          await this.stopStepFunctions();
+        }
       }
     };
   }
@@ -52,15 +61,20 @@ class ServerlessStepFunctionsLocal {
   }
 
   async startStepFunctions() {
-    this.stepfunctionsServer.start({
-      account: this.config.accountId.toString(),
-      lambdaEndpoint: this.config.lambdaEndpoint
-    }).on('data', data => {
-      console.log(chalk.blue('[Serverless Step Functions Local]'), data.toString());
-    });
+    if (this.config.startStepFunctionsLocalApp) {
+      this.stepfunctionsServer.start({
+        account: this.config.accountId.toString(),
+        lambdaEndpoint: this.config.lambdaEndpoint
+      }).on('data', data => {
+        console.log(chalk.blue('[Serverless Step Functions Local]'), data.toString());
+      });
+    } else {
+      console.log(chalk.blue('[Serverless Step Functions Local]'), 'Waiting for AWS Step Functions emulator on port 8083');
+    }
 
     // Wait for server to start
     await tcpPortUsed.waitUntilUsed(8083, 200, 10000);
+    console.log(chalk.blue('[Serverless Step Functions Local]'), 'AWS Step Functions emulator detected on 8083');
   }
 
   stopStepFunctions() {
@@ -80,6 +94,19 @@ class ServerlessStepFunctionsLocal {
 
     this.stateMachines = parsed.stepFunctions.stateMachines;
 
+    // replace Fn::GetAtt
+    Object.keys(this.stateMachines).map(stateMachineName => {
+      const machine = this.stateMachines[stateMachineName]
+      Object.keys(machine.definition.States).map(stateName => {
+        const state = machine.definition.States[stateName]
+        if(state.Type === 'Task') {
+          if(state.Resource && state.Resource['Fn::GetAtt'] && Array.isArray(state.Resource['Fn::GetAtt'])) {
+            state.Resource = `arn:aws:lambda:${this.config.region}:${this.config.accountId}:function:${this.service.service}-${this.serverless.stage ? this.serverless.stage : 'dev'}-${state.Resource['Fn::GetAtt'][0]}`
+          }
+        }
+      })
+    })
+    
     if (parsed.custom 
       && parsed.custom.stepFunctionsLocal
       && parsed.custom.stepFunctionsLocal.TaskResourceMapping) {
@@ -104,6 +131,51 @@ class ServerlessStepFunctionsLocal {
   }
 
   async createEndpoints() {
+    // Delete existing state machines
+    const EMPTY = Symbol('empty')
+    let nextToken = EMPTY
+    const knownStateMachines = Object.keys(this.stateMachines)
+    // A state machine is eventually deleted.
+    // We need to wait until it's actually deleted because otherwise
+    // the new state machine created later is deleted as well and is not
+    // available.
+    while (true) {
+      let hasRunningMachine = false
+      while (nextToken) {
+        const data = await this.stepfunctionsAPI.listStateMachines({
+          nextToken: (nextToken === EMPTY ? undefined : nextToken)
+        }).promise()
+  
+        nextToken = data.nextToken
+        for (const machine of data.stateMachines) {
+          if(!knownStateMachines.includes(machine.name)) {
+            continue
+          }
+          hasRunningMachine = true
+  
+          await this.stepfunctionsAPI.deleteStateMachine({
+            stateMachineArn: machine.stateMachineArn
+          })
+          .promise()
+          .catch(err => {
+            // state machine was not found
+            if(err && err.code === 400) {
+              return
+            }
+  
+            throw err
+          })
+        }
+      }
+
+      if(!hasRunningMachine) {
+        break
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      console.log(chalk.blue('[Serverless Step Functions Local]'), 'Retrying old state machine removal');
+    }
+
     const endpoints = await Promise.all(Object.keys(this.stateMachines).map(stateMachineName => this.stepfunctionsAPI.createStateMachine({
       definition: JSON.stringify(this.stateMachines[stateMachineName].definition),
       name: stateMachineName,
