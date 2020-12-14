@@ -1,7 +1,7 @@
-# serverless-step-functions-local
+# serverless-step-functions-local-docker
 Run AWS step functions offline with Serverless!
 
-This is a plugin for the [Serverless Framework](https://serverless.com/).  It uses [stepfunctions-localhost](https://www.npmjs.com/package/stepfunctions-localhost) to emulate step functions with AWS' provided tool for local development.
+This is a plugin for the [Serverless Framework](https://serverless.com/). It uses [stepfunctions-localhost](https://www.npmjs.com/package/stepfunctions-localhost) to emulate step functions with AWS' provided tool for local development. Alternatively you can run your own emulator such as [aws-stepfunctions-local](https://hub.docker.com/r/amazon/aws-stepfunctions-local) docker container.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ This is a plugin for the [Serverless Framework](https://serverless.com/).  It us
 
 ## Install
 
-`npm install serverless-step-functions-local -D`
+`npm install serverless-step-functions-local-docker -D`
 
 ## Getting Started
 
@@ -21,8 +21,7 @@ You'll need to add this plugin to your `serverless.yml`.  The plugins section sh
 plugins:
   ...
   - serverless-step-functions
-  - serverless-step-functions-local
-  - serverless-offline-lambda
+  - serverless-step-functions-local-docker
   - serverless-offline
   ...
 ```
@@ -38,7 +37,7 @@ custom:
 
 Although not neccessary, it's strongly recomended to add the folder with the downloaded step function executables to `.gitignore`.  By default, this path is `./.step-functions-local`.
 
-The plugin binds to port 8083, this cannot be changed.
+If you decide to start the emulator automatically through `startStepFunctionsLocalApp: true` the plugin binds to port 8083, this cannot be changed.
 
 It also adds an environment variable for each created state machine that contains the ARN for it.  These variables are prefixed by `OFFLINE_STEP_FUNCTIONS_ARN_`, so the ARN of a state machine named 'WaitMachine', for example could be fetched by reading `OFFLINE_STEP_FUNCTIONS_ARN_WaitMachine`.
 
@@ -61,8 +60,7 @@ service: local-step-function
 
 plugins:
   - serverless-step-functions
-  - serverless-step-functions-local
-  - serverless-offline-lambda
+  - serverless-step-functions-local-docker
   - serverless-offline
 
 provider:
