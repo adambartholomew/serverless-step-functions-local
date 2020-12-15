@@ -50,8 +50,10 @@ It also adds an environment variable for each created state machine that contain
 - `lambdaEndpoint` (defaults to `http://localhost:4000`) the endpoint for the lambda service
 - `path` (defaults to `./.step-functions-local`) the path to store the downloaded step function executables
 - `TaskResourceMapping` allows for Resource ARNs to be configured differently for local development
-- `startStepFunctionsLocalApp` (default: true) starts AWS step function emulator. Set to false if it's running already. It needs to run on port 8083.  
-
+- `startStepFunctionsLocalApp` (default: `true`) starts AWS step function emulator. Set to false if it's running already. It needs to run on port 8083.  
+- `waitToStart` (default: `true`) waits on startup until AWS step function emulator is detected on port 8083
+  - `true` throws an error and stops serverless if emulator is not detected
+  - `false` emits an error to console and keeps serverless running if emulator is not detected
 
 ### Full Config Example
 
@@ -76,6 +78,7 @@ custom:
       FirstState: arn:aws:lambda:us-east-1:101010101010:function:hello
       FinalState: arn:aws:lambda:us-east-1:101010101010:function:hello
     startStepFunctionsLocalApp: true
+    waitToStart: true
 
 functions:
   hello:

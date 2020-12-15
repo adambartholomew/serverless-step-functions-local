@@ -34,6 +34,10 @@ class ServerlessStepFunctionsLocal {
       this.config.startStepFunctionsLocalApp = true
     }
 
+    if (this.config.waitToStart === undefined) {
+      this.config.waitToStart = true
+    }
+
     this.stepfunctionsServer = new StepFunctionsLocal(this.config);
 
     this.stepfunctionsAPI = new AWS.StepFunctions({endpoint: 'http://localhost:8083', region: this.config.region});
@@ -44,9 +48,19 @@ class ServerlessStepFunctionsLocal {
           await this.installStepFunctions();
         }
 
-        await this.startStepFunctions();
-        await this.getStepFunctionsFromConfig();
-        await this.createEndpoints();
+        const bootstrap = (async () => {
+          await this.startStepFunctions();
+          await this.getStepFunctionsFromConfig();
+          await this.createEndpoints();
+        })()
+
+        if(this.config.waitToStart) {
+          await bootstrap;
+        } else {
+          bootstrap.catch(err => {
+            console.error(chalk.red('[Serverless Step Functions Local]'), 'Could not detect AWS Step Functions emulator running on port 8083.');
+          })
+        }
       },
       'before:offline:start:end': async () => {
         if (this.config.startStepFunctionsLocalApp) {
