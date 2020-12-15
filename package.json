@@ -6,10 +6,10 @@
   "scripts": {},
   "license": "MIT",
   "dependencies": {
-    "aws-sdk": "^2.781.0",
+    "aws-sdk": "^2.810.0",
     "chalk": "^4.1.0",
     "stepfunctions-localhost": "^0.2.0",
-    "tcp-port-used": "^1.0.1"
+    "tcp-port-used": "^1.0.2"
   },
   "devDependencies": {},
   "keywords": [
