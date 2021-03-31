@@ -104,7 +104,8 @@ class ServerlessStepFunctionsLocal {
 
     const configPath = path.join(servicePath, 'serverless.yml');
 
-    const parsed = await this.serverless.yamlParser.parse(configPath);
+    const preParsed = await this.serverless.yamlParser.parse(configPath);
+    const parsed = await this.serverless.variables.populateObject(preParsed);
 
     this.stateMachines = parsed.stepFunctions.stateMachines;
 
