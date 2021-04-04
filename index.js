@@ -107,22 +107,9 @@ class ServerlessStepFunctionsLocal {
     const preParsed = await this.serverless.yamlParser.parse(configPath);
     const parsed = await this.serverless.variables.populateObject(preParsed);
 
-    this.stateMachines = parsed.stepFunctions.stateMachines;
+    this.stateMachines = this.stateMachineCFARNResolver(parsed.stepFunctions.stateMachines);
 
-    // replace Fn::GetAtt
-    Object.keys(this.stateMachines).map(stateMachineName => {
-      const machine = this.stateMachines[stateMachineName]
-      Object.keys(machine.definition.States).map(stateName => {
-        const state = machine.definition.States[stateName]
-        if(state.Type === 'Task') {
-          if(state.Resource && state.Resource['Fn::GetAtt'] && Array.isArray(state.Resource['Fn::GetAtt'])) {
-            state.Resource = `arn:aws:lambda:${this.config.region}:${this.config.accountId}:function:${this.service.service}-${this.serverless.stage ? this.serverless.stage : 'dev'}-${state.Resource['Fn::GetAtt'][0]}`
-          }
-        }
-      })
-    })
-    
-    if (parsed.custom 
+    if (parsed.custom
       && parsed.custom.stepFunctionsLocal
       && parsed.custom.stepFunctionsLocal.TaskResourceMapping) {
         this.replaceTaskResourceMappings(parsed.stepFunctions.stateMachines, parsed.custom.stepFunctionsLocal.TaskResourceMapping);
@@ -160,30 +147,30 @@ class ServerlessStepFunctionsLocal {
         const data = await this.stepfunctionsAPI.listStateMachines({
           nextToken: (nextToken === EMPTY ? undefined : nextToken)
         }).promise()
-  
+
         nextToken = data.nextToken
         for (const machine of data.stateMachines) {
-          if(!knownStateMachines.includes(machine.name)) {
+          if (!knownStateMachines.includes(machine.name)) {
             continue
           }
           hasRunningMachine = true
-  
+
           await this.stepfunctionsAPI.deleteStateMachine({
             stateMachineArn: machine.stateMachineArn
           })
-          .promise()
-          .catch(err => {
-            // state machine was not found
-            if(err && err.code === 400) {
-              return
-            }
-  
-            throw err
-          })
+            .promise()
+            .catch(err => {
+              // state machine was not found
+              if (err && err.code === 400) {
+                return
+              }
+
+              throw err
+            })
         }
       }
 
-      if(!hasRunningMachine) {
+      if (!hasRunningMachine) {
         break
       }
 
@@ -202,6 +189,49 @@ class ServerlessStepFunctionsLocal {
     endpoints.forEach(endpoint => {
       process.env[`OFFLINE_STEP_FUNCTIONS_ARN_${endpoint.stateMachineArn.split(':')[6]}`] = endpoint.stateMachineArn;
     });
+  }
+
+  /**
+   * Pure Function that will parse Fn:GetAtt and !GetAtt CloudFormation functions from state machine
+   */
+  stateMachineCFARNResolver(stateMachines) {
+    const newStateMachines = { ...stateMachines }
+
+    for (const [stateMachineName, stateMachine] of Object.entries(newStateMachines)) {
+      stateMachine.definition.States = this.statesCFARNResolver(stateMachine.definition.States);
+    }
+
+    return newStateMachines;
+  }
+
+  /**
+   * Pure Function that will parse Fn:GetAtt and !GetAtt CloudFormation functions from States
+   */
+  statesCFARNResolver(states) {
+    const newStates = { ...states }
+
+    for (const [stateName, state] of Object.entries(newStates)) {
+      switch (state.Type) {
+        case 'Task':
+          if (state.Resource && state.Resource['Fn::GetAtt'] && Array.isArray(state.Resource['Fn::GetAtt'])) {
+            state.Resource = `arn:aws:lambda:${this.config.region}:${this.config.accountId}:function:${this.service.service}-${this.serverless.stage ? this.serverless.stage : 'dev'}-${state.Resource['Fn::GetAtt'][0]}`
+          }
+          break;
+        case 'Map':
+          state.Iterator.States = this.statesCFARNResolver(state.Iterator.States);
+          break;
+        case 'Parallel':
+          for (const branch of state.Branches) {
+            branch.States = this.statesCFARNResolver(branch.States);
+          }
+          break;
+        default:
+          // ignore
+          break;
+      }
+    }
+
+    return newStates;
   }
 }
 
