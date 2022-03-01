@@ -13,7 +13,7 @@ class ServerlessStepFunctionsLocal {
     this.log = serverless.cli.log.bind(serverless.cli);
     this.config = (this.service.custom && this.service.custom.stepFunctionsLocal) || {};
     
-    if (this.service.provider.stage !== undefined) {
+    if (this.service.provider !== undefined && this.service.provider.stage !== undefined) {
       this.stage = this.service.provider.stage;
     } else if (this.service.stage !== undefined) {
       this.stage = this.service.stage;
