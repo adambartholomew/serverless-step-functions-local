@@ -12,9 +12,17 @@ class ServerlessStepFunctionsLocal {
 
     this.log = serverless.cli.log.bind(serverless.cli);
     this.config = (this.service.custom && this.service.custom.stepFunctionsLocal) || {};
+    
+    if (this.service.provider.stage !== undefined) {
+      this.stage = this.service.provider.stage;
+    } else if (this.service.stage !== undefined) {
+      this.stage = this.service.stage;
+    } else {
+      this.stage = 'dev';
+    }
 
     // Check config
-    if (!this.config.accountId) {
+    if (this.config.accountId === undefined) {
       throw new Error('Step Functions Local: missing accountId');
     }
 
@@ -214,7 +222,7 @@ class ServerlessStepFunctionsLocal {
       switch (state.Type) {
         case 'Task':
           if (state.Resource && state.Resource['Fn::GetAtt'] && Array.isArray(state.Resource['Fn::GetAtt'])) {
-            state.Resource = `arn:aws:lambda:${this.config.region}:${this.config.accountId}:function:${this.service.service}-${this.serverless.stage ? this.serverless.stage : 'dev'}-${state.Resource['Fn::GetAtt'][0]}`
+            state.Resource = `arn:aws:lambda:${this.config.region}:${this.config.accountId}:function:${this.service.service}-${this.stage}-${state.Resource['Fn::GetAtt'][0]}`
           }
           break;
         case 'Map':
